@@ -23,6 +23,7 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # Customizable keys
 : "${GHFC_OPEN_BROWSER_KEY:=ctrl-b}"
 : "${GHFC_OPEN_EDITOR_KEY:=ctrl-o}"
+: "${GHFC_SAVE_FILE_KEY:=ctrl-s}"
 : "${GHFC_FILTER_BY_REPO_KEY:=ctrl-p}"
 : "${GHFC_RELOAD_KEY:=ctrl-r}"
 : "${GHFC_TOGGLE_HISTORY_KEY:=ctrl-space}"
@@ -127,6 +128,7 @@ DARK_GRAY='\033[0;90m'
 FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
 
 open_in_editor=false
+save_file=false
 # Note: Using prompts of the same character length helps maintain user focus by avoiding shifts in
 # the prompt's position. End the string with a color code, such as '%b', to preserve trailing
 # whitespace during 'transform' actions.
@@ -177,6 +179,9 @@ store_hold_gh_query_loop="${scratch_directory}/hold_gh_query_loop"
 store_last_query_signature="${scratch_directory}/last_search_setup"
 store_current_header="${scratch_directory}/current_header"
 
+save_directory="$HOME/.cache/gh-find-code/save/$(date +%Y-%m-%d-%H-%M-%S)"
+mkdir -p "$save_directory" || die "Could not create $save_directory"
+
 ###############################################################################
 # Cleanup Functions
 ###############################################################################
@@ -207,6 +212,14 @@ kill_processes() {
 cleanup() {
 	kill_processes "$store_query_pids"
 	command rm -rf "$scratch_directory" 2>/dev/null
+	printf "%bThe following files have been saved:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
+	find "$save_directory" -mindepth 1 -type f 2>/dev/null | while read -r matching_file; do
+		if [[ ! -s $matching_file ]]; then
+			command rm -f "$matching_file"
+		else
+			command printf "\t%s\n" "$matching_file"
+		fi
+	done
 	if ((GHFC_DEBUG_MODE)); then
 		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
@@ -868,7 +881,7 @@ view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
-	IFS=$'\t' read -r _ file_extension index _ file_path < <(command sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+	IFS=$'\t' read -r _ file_extension index github_repo file_path < <(command sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 	# Remove trailing whitespace that was caused by the '%-3d' placeholder in 'printf'.
 	index=$(command tr -d '[:space:]' <<<"$index")
 
@@ -904,19 +917,27 @@ view_contents() {
 	bat_args+=("--file-name='${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
 
 	if $open_in_editor; then
+		save_file=true
+	fi
+	if $save_file; then
+		# Replace colons with _ in name as VSCode cannot opening files with colons in their names
+		savefile_with_ext="$save_directory/$github_repo/${file_path//:/_}"
+		if mkdir -p "$(dirname "$savefile_with_ext")" && command cp "${store_file_contents}_${index}_fetched" "$savefile_with_ext"; then
+			notify "Saved" "$savefile_with_ext" || true
+		else
+			notify "Failed to save" "$savefile_with_ext" || true
+			return 0
+		fi
+	fi
+	if $open_in_editor; then
 		case $(command basename "${EDITOR-}") in
 			code | codium | cursor | windsurf)
 				# VSCode cannot handle opening files with colons in their names
-				tempfile_with_ext="${store_file_contents}_${index}_${file_name//:/_}"
-				command cp "${store_file_contents}_${index}_fetched" "$tempfile_with_ext"
 
-				editor_args=(--reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}")
+				editor_args=(--reuse-window --goto "${savefile_with_ext}:${line_numbers:-1}")
 				;;
 			nano | nvim | vi | vim)
-				tempfile_with_ext="${store_file_contents}_${index}_${file_name}"
-				command cp "${store_file_contents}_${index}_fetched" "$tempfile_with_ext"
-
-				editor_args=("+${line_numbers:-1}" "$tempfile_with_ext")
+				editor_args=("+${line_numbers:-1}" "$savefile_with_ext")
 				;;
 			*)
 				play_notification_sound
@@ -1031,6 +1052,31 @@ preview_transformer() {
 	echo "change-preview-window:${lines%.*}"
 }
 
+repo_toggle_transformer() {
+	local item="$1"
+	local query="$2"
+
+	# Strip single quotes if fzf added them (e.g. 'foo/bar' -> foo/bar)
+	item="${item#\'}"
+	item="${item%\'}"
+
+	local tag="repo:$item"
+
+	if [[ "$query" == *"$tag"* ]]; then
+		# Toggle OFF: Remove the tag
+		# 1. Try removing "tag " (with trailing space)
+		local new_query="${query//$tag /}"
+		# 2. Try removing "tag" (no space - e.g. at end of line)
+		echo "${new_query//$tag/}"
+	else
+		# Toggle ON: Prepend the tag
+		echo "$tag $query"
+	fi
+}
+
+# Export it so fzf can call it in a subshell
+export -f repo_toggle_transformer
+
 main() {
 	# CLI Options
 	while getopts ":hl:" value; do
@@ -1073,7 +1119,10 @@ main() {
 		--bind "${GHFC_OPEN_EDITOR_KEY}:transform:[[ \$FZF_MATCH_COUNT -ge 1 && \${EDITOR##*/} =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
-		--bind "${GHFC_FILTER_BY_REPO_KEY}:transform-query:echo repo:{4} \$FZF_QUERY" \
+		--bind "${GHFC_SAVE_FILE_KEY}:transform:[[ \$FZF_MATCH_COUNT -ge 1 ]] &&
+		echo 'execute-silent:save_file=true \view_contents \{}' ||
+		echo 'execute:save_file=true \view_contents \{}'" \
+		--bind "${GHFC_FILTER_BY_REPO_KEY}:transform-query:repo_toggle_transformer {4} \"\$FZF_QUERY\"" \
 		--bind "${GHFC_RELOAD_KEY}:reload:gh_user_limit=100 gh_query" \
 		--bind "${GHFC_TOGGLE_HISTORY_KEY}:execute:view_history_commands" \
 		--bind "${GHFC_TOGGLE_FUZZY_SEARCH_KEY}:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
@@ -1100,3 +1149,4 @@ main() {
 
 # TODO: check what cool new things fzf added since 0.56.1
 main "$@"
+# vim: set noet fdl=1 fdm=manual fenc=utf-8 ff=unix ff=unix sts=0 sw=4 ts=4 nowrap :

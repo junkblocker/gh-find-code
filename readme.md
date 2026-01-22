@@ -54,6 +54,7 @@ gh find-code [Flags] [Search query]
 | `?`              | toggle help                              |                                |
 | `ctrl-b`         | open the file in the browser             | `GHFC_OPEN_BROWSER_KEY`        |
 | `ctrl-o`         | open the file content in the editor      | `GHFC_OPEN_EDITOR_KEY`         |
+| `ctrl-s`         | save the file locally                    | `GHFC_SAVE_FILE_KEY`           |
 | `ctrl-p`         | prepend "repo:{owner/name}" to the query | `GHFC_FILTER_BY_REPO_KEY`      |
 | `ctrl-r`         | reload with up to 100 results            | `GHFC_RELOAD_KEY`              |
 | `ctrl-space`     | toggle command history                   | `GHFC_TOGGLE_HISTORY_KEY`      |
