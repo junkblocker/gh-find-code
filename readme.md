@@ -49,20 +49,22 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100) |
 | `-h`  | help                                                     |
 
-| Key Bindings fzf | Purpose                                  | Keybind Environment Variable   |
-| ---------------- | ---------------------------------------- | ------------------------------ |
-| `?`              | toggle help                              |                                |
-| `ctrl-b`         | open the file in the browser             | `GHFC_OPEN_BROWSER_KEY`        |
-| `ctrl-o`         | open the file content in the editor      | `GHFC_OPEN_EDITOR_KEY`         |
-| `ctrl-s`         | save the file locally                    | `GHFC_SAVE_FILE_KEY`           |
-| `ctrl-p`         | prepend "repo:{owner/name}" to the query | `GHFC_FILTER_BY_REPO_KEY`      |
-| `ctrl-r`         | reload with up to 100 results            | `GHFC_RELOAD_KEY`              |
-| `ctrl-space`     | toggle command history                   | `GHFC_TOGGLE_HISTORY_KEY`      |
-| `ctrl-t`         | toggle between Code and Fuzzy search     | `GHFC_TOGGLE_FUZZY_SEARCH_KEY` |
-| `ctrl-x`         | open the search query in the browser     | `GHFC_OPEN_BROWSER_QUERY_KEY`  |
-| `enter`          | open the file in the pager               | `GHFC_VIEW_CONTENTS_KEY`       |
-| `tab`            | toggle the file preview                  | `GHFC_TOGGLE_PREVIEW_KEY`      |
-| `esc`            | quit                                     |                                |
+| Key Bindings fzf | Purpose                                                 | Keybind Environment Variable   |
+| ---------------- | ------------------------------------------------------- | ------------------------------ |
+| `?`              | toggle help                                             |                                |
+| `ctrl-b`         | open the file in the browser                            | `GHFC_OPEN_BROWSER_KEY`        |
+| `ctrl-o`         | open the file content in the editor                     | `GHFC_OPEN_EDITOR_KEY`         |
+| `ctrl-s`         | save the selected files if any or current file locally  | `GHFC_SAVE_FILE_KEY`           |
+| `ctrl-p`         | toggle "repo:{owner/name}" in the query                 | `GHFC_FILTER_BY_REPO_KEY`      |
+| `ctrl-r`         | reload with up to 100 results                           | `GHFC_RELOAD_KEY`              |
+| `ctrl-space`     | toggle command history                                  | `GHFC_TOGGLE_HISTORY_KEY`      |
+| `ctrl-f`         | toggle between Code and Fuzzy search                    | `GHFC_TOGGLE_FUZZY_SEARCH_KEY` |
+| `ctrl-x`         | open the search query in the browser                    | `GHFC_OPEN_BROWSER_QUERY_KEY`  |
+| `enter`          | open the file in the pager                              | `GHFC_VIEW_CONTENTS_KEY`       |
+| `ctrl-t`         | toggle the file preview                                 | `GHFC_TOGGLE_PREVIEW_KEY`      |
+| `tab`            | un/select the file and move down                        | `GHFC_TOGGLE_DOWN_KEY`  `      |
+| `shift-tab`      | un/select the file and move up                          | `GHFC_TOGGLE_UP_KEY`           |
+| `esc`            | quit                                                    |                                |
 
 To avoid interfering with a user's typical keybinds, key bindings can be customized by setting the
 corresponding environment variables. For example, to change the key binding for opening a file in

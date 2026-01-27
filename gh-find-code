@@ -27,10 +27,12 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 : "${GHFC_FILTER_BY_REPO_KEY:=ctrl-p}"
 : "${GHFC_RELOAD_KEY:=ctrl-r}"
 : "${GHFC_TOGGLE_HISTORY_KEY:=ctrl-space}"
-: "${GHFC_TOGGLE_FUZZY_SEARCH_KEY:=ctrl-t}"
+: "${GHFC_TOGGLE_FUZZY_SEARCH_KEY:=ctrl-f}"
 : "${GHFC_OPEN_BROWSER_QUERY_KEY:=ctrl-x}"
 : "${GHFC_VIEW_CONTENTS_KEY:=enter}"
-: "${GHFC_TOGGLE_PREVIEW_KEY:=tab}"
+: "${GHFC_TOGGLE_PREVIEW_KEY:=ctrl-t}"
+: "${GHFC_TOGGLE_DOWN_KEY:=tab}"
+: "${GHFC_TOGGLE_UP_KEY:=shift-tab}"
 
 ###############################################################################
 # Debugging and Error Handling Configuration
@@ -380,13 +382,16 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?         ${COLOR_RESET}  toggle help
   ${GREEN_NORMAL}${GHFC_OPEN_BROWSER_KEY}    ${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}${GHFC_OPEN_EDITOR_KEY}    ${COLOR_RESET}  open the file content in the editor
-  ${GREEN_NORMAL}${GHFC_FILTER_BY_REPO_KEY}    ${COLOR_RESET}  prepend "repo:{owner/name}" to the query
+  ${GREEN_NORMAL}${GHFC_SAVE_FILE_KEY}    ${COLOR_RESET}  save the selected files if any or the current file locally
+  ${GREEN_NORMAL}${GHFC_FILTER_BY_REPO_KEY}    ${COLOR_RESET}  toggle "repo:{owner/name}" in the query
   ${GREEN_NORMAL}${GHFC_RELOAD_KEY}    ${COLOR_RESET}  reload with up to 100 results
   ${GREEN_NORMAL}${GHFC_TOGGLE_HISTORY_KEY}${COLOR_RESET}  toggle command history
   ${GREEN_NORMAL}${GHFC_TOGGLE_FUZZY_SEARCH_KEY}    ${COLOR_RESET}  toggle between Code and Fuzzy search
   ${GREEN_NORMAL}${GHFC_OPEN_BROWSER_QUERY_KEY}    ${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}${GHFC_VIEW_CONTENTS_KEY}     ${COLOR_RESET}  open the file in the pager
-  ${GREEN_NORMAL}${GHFC_TOGGLE_PREVIEW_KEY}       ${COLOR_RESET}  toggle the file preview
+  ${GREEN_NORMAL}${GHFC_TOGGLE_PREVIEW_KEY}    ${COLOR_RESET}  toggle the file preview
+  ${GREEN_NORMAL}${GHFC_TOGGLE_DOWN_KEY}       ${COLOR_RESET}  un/select the file and move down
+  ${GREEN_NORMAL}${GHFC_TOGGLE_UP_KEY} ${COLOR_RESET}  un/select the file and move up
   ${GREEN_NORMAL}esc       ${COLOR_RESET}  quit
 
 ${WHITE_BOLD}Search query examples${COLOR_RESET}
@@ -876,11 +881,18 @@ EOF
 	fi
 }
 
+save_selected_files() {
+	[[ -z $* ]] && return
+	for entry in "$@"; do
+		save_file=true open_in_editor=false view_contents "$entry"
+	done
+}
+
 view_contents() {
 	[[ -z $* ]] && return
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
-	local file_name tempfile_with_ext less_move_to_line
+	local file_name savefile_with_ext less_move_to_line
 	IFS=$'\t' read -r _ file_extension index github_repo file_path < <(command sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 	# Remove trailing whitespace that was caused by the '%-3d' placeholder in 'printf'.
 	index=$(command tr -d '[:space:]' <<<"$index")
@@ -988,7 +1000,6 @@ fzf_basic_style() {
 		--header-lines 0 \
 		--highlight-line \
 		--no-expect \
-		--no-multi \
 		--no-print-query \
 		--info hidden \
 		--layout reverse \
@@ -1120,8 +1131,8 @@ main() {
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
 		--bind "${GHFC_SAVE_FILE_KEY}:transform:[[ \$FZF_MATCH_COUNT -ge 1 ]] &&
-		echo 'execute-silent:save_file=true \view_contents \{}' ||
-		echo 'execute:save_file=true \view_contents \{}'" \
+		echo 'execute-silent:\save_selected_files \{+}' ||
+		echo 'execute:\save_selected_files \{+}'" \
 		--bind "${GHFC_FILTER_BY_REPO_KEY}:transform-query:repo_toggle_transformer {4} \"\$FZF_QUERY\"" \
 		--bind "${GHFC_RELOAD_KEY}:reload:gh_user_limit=100 gh_query" \
 		--bind "${GHFC_TOGGLE_HISTORY_KEY}:execute:view_history_commands" \
@@ -1131,6 +1142,8 @@ main() {
 		--bind "${GHFC_OPEN_BROWSER_QUERY_KEY}:execute-silent:open_query_in_browser {q}" \
 		--bind "${GHFC_VIEW_CONTENTS_KEY}:execute:[[ \$FZF_MATCH_COUNT -ge 1 ]] && view_contents {}" \
 		--bind "${GHFC_TOGGLE_PREVIEW_KEY}:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
+		--bind "${GHFC_TOGGLE_UP_KEY}:toggle-up" \
+		--bind "${GHFC_TOGGLE_DOWN_KEY}:toggle-down" \
 		--bind 'esc:become:' \
 		--delimiter '\t|\s\s+' \
 		--disabled \
