@@ -905,6 +905,24 @@ view_contents() {
 		"--style=numbers,header-filename,grid"
 		"--color=always"
 	)
+    local bt shade
+	bt="$(cat ~/.config/theme 2>/dev/null | tr -d '\r\n' || printf %s auto)"
+    case "$bt" in
+        light*) shade=light;;
+        dark*) shade=dark;;
+        *)
+        shade=auto;;
+    esac
+	case "$(bat --version 2>&1)" in
+		bat\ 0.24*)
+			case "$shade" in
+				light) bat_args+=(--theme gruvbox-light);;
+				dark) bat_args+=(--theme gruvbox-dark);;
+				*) ;;
+			esac
+			;;
+		*) bat_args+=(--theme=$shade --theme-light gruvbox-light --theme-dark gruvbox-dark) ;;
+	esac
 
 	# NOTE: The '--color=always' flag is important as it alters the exit status when all output is
 	# redirected to /dev/null. This is a very unintuitive design decision by 'bat' or a bug.
@@ -986,15 +1004,19 @@ view_contents() {
 # Basic style for 'fzf'; useful tool:  https://vitormv.github.io/fzf-themes/
 # IMPORTANT: anything after "$@" will overwrite options in the actual command
 fzf_basic_style() {
+	local theme color
+	theme="$(cat ~/.config/theme 2>/dev/null | tr -d '\r\n' || printf %s auto)"
+    case "$theme" in
+        light*) color="--color light";;
+        dark*) color="--color dark";;
+        *) color='';;
+    esac
+	# shellcheck disable=SC2086
 	command fzf -- \
 		--ansi \
 		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 		--border block \
-		--color 'bg+:233,bg:235,gutter:235,border:238:dim,scrollbar:235' \
-		--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
-		--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
-		--color 'pointer:9,spinner:92,marker:46' \
-		--color 'prompt:14,info:40,header:255:regular,label:bold' \
+		$color \
 		--ellipsis '' \
 		--height=100% \
 		--header-lines 0 \
@@ -1034,7 +1056,6 @@ EOF
 			--bind "${GHFC_TOGGLE_HISTORY_KEY}:abort" \
 			--bind 'enter:accept-or-print-query' \
 			--bind 'esc:abort' \
-			--color "header:${header_color:--1}" \
 			--delimiter '\s+' \
 			--header "${header_string:-"enter select · ^d delete an entry · esc quit"}" \
 			--info inline \
