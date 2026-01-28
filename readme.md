@@ -94,6 +94,7 @@ GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
 - [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get
   the data from Github
 - [GNU grep](https://www.gnu.org/software/grep/) - searches through text using regular expressions
+- [gum](https://github.com/charmbracelet/gum) - Get user input from shell scripts
 - [Python](https://www.python.org) - used to parse and open custom URLs on
   different operating systems
 
