@@ -214,14 +214,38 @@ kill_processes() {
 cleanup() {
 	kill_processes "$store_query_pids"
 	command rm -rf "$scratch_directory" 2>/dev/null
-	printf "%bThe following files have been saved:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
-	find "$save_directory" -mindepth 1 -type f 2>/dev/null | while read -r matching_file; do
+
+	local saved_anything=0
+	while read -r matching_file; do
 		if [[ ! -s $matching_file ]]; then
 			command rm -f "$matching_file"
 		else
+			if ! (( saved_anything )); then
+				printf "%bThe following files have been saved:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
+				saved_anything=1
+			fi
 			command printf "\t%s\n" "$matching_file"
 		fi
-	done
+	done < <(find "$save_directory" -mindepth 1 -type f 2>/dev/null)
+	if (( saved_anything )); then
+		local newname
+		while [[ -z "${newname:-}" ]]; do
+			if ! newname="$(gum input --placeholder="Enter the new save directory name ..." --prompt="> " --value="$save_directory" --header="Name of the saved files directory" --strip-ansi)"; then
+				break
+			else
+				if [[ -n "${newname:-}" ]] && [[ "$newname" != "$save_directory" ]] && [[ ! -e "$newname" && ! -L "$newname" && ! -d "$newname" ]]; then
+					if mkdir -p "$(dirname "$newname")" && mv -f "$save_directory" "$newname"; then
+						printf "%bDirectory renamed to %s.%b\n" "$GREEN_NORMAL" "$newname" "$COLOR_RESET"
+					else
+						printf "%bFailed to rename directory to %s.%b\n" "$RED_NORMAL" "$newname" "$COLOR_RESET"
+						newname=""
+					fi
+				else
+					newname=""
+				fi
+			fi
+		done
+	fi
 	if ((GHFC_DEBUG_MODE)); then
 		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
@@ -274,7 +298,7 @@ validate_environment() {
 
 	# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
 	# https://pubs.opengroup.org/onlinepubs/9699919799.2016edition/utilities/contents.html
-	for value in column curl fzf gh; do
+	for value in column curl fzf gh gum; do
 		if ! command -v $value >/dev/null; then
 			die "'$value' was not found."
 		fi
