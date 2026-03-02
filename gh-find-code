@@ -228,13 +228,40 @@ cleanup() {
 		fi
 	done < <(find "$save_directory" -mindepth 1 -type f 2>/dev/null)
 	if (( saved_anything )); then
-		local newname
+		local newname pick_mode
 		while true; do
-			if ! newname="$(gum input --placeholder="Enter the new save directory name ..." --prompt="> " --value="$save_directory" --header="Name of the saved files directory" --strip-ansi)"; then
-				break
-			fi
-			if [[ -z "${newname:-}" || "$newname" == "$save_directory" || -f "$newname" || -L "$newname" ]]; then
-				printf "%bDon't like that %s.%b\n" "$RED_NORMAL" "$newname" "$COLOR_RESET"
+			pick_mode="$(gum choose \
+				--header="Where do you want to save the files?" \
+				--height=4 \
+				"Browse for an existing directory" \
+				"Enter a new directory path" \
+				"Keep current path ($save_directory)")" || break
+
+			case "$pick_mode" in
+				"Browse for an existing directory")
+					newname="$(gum file --directory \
+						--header="Select a destination directory" \
+						"${HOME}")" || continue
+					;;
+				"Enter a new directory path")
+					newname="$(gum input \
+						--placeholder="Enter the new save directory name ..." \
+						--prompt="> " \
+						--value="$save_directory" \
+						--header="Name of the saved files directory" \
+						--strip-ansi)" || break
+					;;
+				*)
+					break
+					;;
+			esac
+
+			if [[ -z "${newname:-}" ]]; then
+				printf "%bDon't like a '%s' (blank name).%b\n" "$RED_NORMAL" "${newname:-}" "$COLOR_RESET"
+			elif [[ "$newname" == "$save_directory" ]]; then
+				printf "%bThat is the same as the original '%s'.%b\n" "$RED_NORMAL" "${newname:-}" "$COLOR_RESET"
+			elif [[ -f "$newname" || -L "$newname" ]]; then
+				printf "%bThat is not a directory '%s'.%b\n" "$RED_NORMAL" "$newname" "$COLOR_RESET"
 			else
 				if [[ ! -d "$newname" ]]; then
 					if mkdir -p "$(dirname "$newname")" && mv -f "$save_directory" "$newname"; then
